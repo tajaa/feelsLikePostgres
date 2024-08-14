@@ -120,8 +120,8 @@ async def compare_weather(city: str, db: Session = Depends(get_db)):
         # store openweather data
         openweather_db_entry = Weather(
             city=city,
-            temperature=clean_numeric_string(tomorrow_weather["temperature"]),
-            humidity=clean_numeric_string(tomorrow_weather["humidity"]),
+            temperature=clean_numeric_string(openweather_weather["temperature"]),
+            humidity=clean_numeric_string(openweather_weather["humidity"]),
             data_source="Openweather",
         )
         db.add(openweather_db_entry)
