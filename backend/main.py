@@ -1,3 +1,7 @@
+import os
+
+import httpx
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -6,7 +10,10 @@ from sqlalchemy.orm import Session
 from database import engine, get_db
 from models import Base, Weather
 
+load_dotenv()
 app = FastAPI()
+
+TOMORROW_API = os.getenv("TOMORROW_API")
 
 
 @app.get("/")
@@ -34,19 +41,31 @@ def test_db_connection(db: Session = Depends(get_db)):
 
 
 @app.get("/weather/{city}")
-def read_weather(city: str, db: Session = Depends(get_db)):
-    # FastAPI route to get weather for a city
-    # 'db: Session = Depends(get_db)' injects a database session into this function
+async def get_weather(city: str):
+    url = "https://api.tomorrow.io/v4/weather/realtime"
 
-    # Query the PostgreSQL database for weather data
-    # This is equivalent to: SELECT * FROM weather WHERE city = {city} LIMIT 1
-    weather = db.query(Weather).filter(Weather.city == city).first()
+    # query params
+    params = {"location": city, "apikey": TOMORROW_API, "units": "metric"}
 
-    if weather:
-        # If found, return the weather data
-        # FastAPI will automatically convert this SQLAlchemy model to JSON
-        return weather
-    return {"error": "City not found"}
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+            weather_data = response.json()
+
+            # extract relevant wather info
+            temperature = weather_data["data"]["values"]["temperature"]
+            humidity = weather_data["data"]["values"]["humidity"]
+            return {"city": city, "temperature": temperature, "humidity": humidity}
+
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=str(e))
+        except KeyError as e:
+            raise HTTPException(
+                status_code=500, detail=f"unexected response format: {str(e)}"
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"an error occured: {str(3)}")
 
 
 # this fastapi app sets up a web server that connects to pstgres
