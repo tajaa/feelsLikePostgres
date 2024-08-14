@@ -18,6 +18,7 @@ TOMORROW_API = os.getenv("TOMORROW_API")
 OPENWEATHERMAP_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY")
 
 Base.metadata.create_all(bind=engine)
+# Base.metadata.drop_all(bind=engine)
 
 app = FastAPI()
 
@@ -39,6 +40,12 @@ def test_db_connection(db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=500, detail=f"Database connection failed: {str(e)}"
         )
+
+
+def clean_numeric_string(s: str) -> float:
+    """'remove non numerics"""
+    cleaned = "".join(char for char in s if char.isdigit() or char == ".")
+    return float(cleaned)
 
 
 async def get_tomorrow_weather(city: str):
@@ -96,15 +103,35 @@ async def get_openweather_weather(city: str):
 
 
 @app.get("/weather/compare/{city}")
-async def compare_weather(city: str):
+async def compare_weather(city: str, db: Session = Depends(get_db)):
     try:
         tomorrow_weather = await get_tomorrow_weather(city)
         openweather_weather = await get_openweather_weather(city)
+
+        # store tomorrows io data
+        tomorrow_db_entry = Weather(
+            city=city,
+            temperature=clean_numeric_string(tomorrow_weather["temperature"]),
+            humidity=clean_numeric_string(tomorrow_weather["humidity"]),
+            data_source="tomorrow.io",
+        )
+        db.add(tomorrow_db_entry)
+
+        # store openweather data
+        openweather_db_entry = Weather(
+            city=city,
+            temperature=clean_numeric_string(tomorrow_weather["temperature"]),
+            humidity=clean_numeric_string(tomorrow_weather["humidity"]),
+            data_source="Openweather",
+        )
+        db.add(openweather_db_entry)
+        db.commit()
 
         return {
             "city": city,
             "tomorrow_io": tomorrow_weather,
             "openweather": openweather_weather,
+            "message": "Weather data stored in database",
         }
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=str(e))
