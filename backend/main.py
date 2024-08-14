@@ -16,14 +16,9 @@ app = FastAPI()
 TOMORROW_API = os.getenv("TOMORROW_API")
 
 
-@app.get("/")
-def read_root():
-    # a simple root endpoint
-    return {"hello": "world"}
-
-
 @app.get("/test-db")
 def test_db_connection(db: Session = Depends(get_db)):
+    """for testing"""
     try:
         # Use text() to wrap the SQL string
         result = db.execute(text("SELECT 1")).fetchone()
@@ -42,10 +37,11 @@ def test_db_connection(db: Session = Depends(get_db)):
 
 @app.get("/weather/{city}")
 async def get_weather(city: str):
+    """simple get weather"""
     url = "https://api.tomorrow.io/v4/weather/realtime"
 
     # query params
-    params = {"location": city, "apikey": TOMORROW_API, "units": "metric"}
+    params = {"location": city, "apikey": TOMORROW_API, "units": "imperial"}
 
     async with httpx.AsyncClient() as client:
         try:
