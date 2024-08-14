@@ -1,11 +1,9 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 
 from database import Base
-
-Base = declarative_base()
 
 
 class Weather(Base):
@@ -20,6 +18,7 @@ class Weather(Base):
     wind_speed = Column(Float)
     data_source = Column(String)
     timestamp = Column(DateTime, default=datetime.utcnow)
+    is_average = Column(Boolean, default=False)
 
     # this class defines the strucutre of our weather table in postgresql
     # sqlalchemy orm will use this to create the table and interact with it

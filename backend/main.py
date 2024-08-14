@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import datetime, timezone
 
 import httpx
@@ -8,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from database import engine, get_db
+from database import Base, engine, get_db
 from models import Base, Weather
 
 load_dotenv()
@@ -21,6 +22,27 @@ Base.metadata.create_all(bind=engine)
 # Base.metadata.drop_all(bind=engine)
 
 app = FastAPI()
+
+
+def setup_database(should_drop=False):
+    if should_drop:
+        Base.metadata.drop_all(bind=engine)
+        print("dropped all tables")
+    Base.metadata.create_all(bind=engine)
+    print("created all tables")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--drop-and-create":
+            setup_database(should_drop=True)
+        elif sys.argv[1] == "--create":
+            setup_database()
+    else:
+        # Your normal FastAPI run code here
+        import uvicorn
+
+        uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
 @app.get("/test-db")
@@ -108,37 +130,82 @@ async def compare_weather(city: str, db: Session = Depends(get_db)):
         tomorrow_weather = await get_tomorrow_weather(city)
         openweather_weather = await get_openweather_weather(city)
 
-        # store tomorrows io data
-        tomorrow_db_entry = Weather(
-            city=city,
-            temperature=clean_numeric_string(tomorrow_weather["temperature"]),
-            humidity=clean_numeric_string(tomorrow_weather["humidity"]),
-            data_source="tomorrow.io",
-        )
-        db.add(tomorrow_db_entry)
+        def safe_clean_numeric(value):
+            if value is None:
+                return None
+            try:
+                return float(
+                    "".join(
+                        char for char in str(value) if char.isdigit() or char == "."
+                    )
+                )
+            except ValueError:
+                return None
 
-        # store openweather data
-        openweather_db_entry = Weather(
-            city=city,
-            temperature=clean_numeric_string(openweather_weather["temperature"]),
-            humidity=clean_numeric_string(openweather_weather["humidity"]),
-            data_source="Openweather",
+        def safe_average(val1, val2):
+            cleaned1, cleaned2 = safe_clean_numeric(val1), safe_clean_numeric(val2)
+            if cleaned1 is not None and cleaned2 is not None:
+                return (cleaned1 + cleaned2) / 2
+            return cleaned1 or cleaned2
+
+        avg_temperature = safe_average(
+            tomorrow_weather.get("temperature"), openweather_weather.get("temperature")
         )
-        db.add(openweather_db_entry)
+
+        weather_entries = [
+            Weather(
+                city=city,
+                temperature=safe_clean_numeric(data.get("temperature")),
+                humidity=safe_clean_numeric(data.get("humidity")),
+                feels_like=safe_clean_numeric(data.get("feels_like")),
+                wind_speed=safe_clean_numeric(data.get("wind_speed")),
+                data_source=source,
+                is_average=(source == "Average"),
+            )
+            for source, data in [
+                ("tomorrow.io", tomorrow_weather),
+                ("OpenWeather", openweather_weather),
+                (
+                    "Average",
+                    {
+                        "temperature": avg_temperature,
+                        "humidity": safe_average(
+                            tomorrow_weather.get("humidity"),
+                            openweather_weather.get("humidity"),
+                        ),
+                        "feels_like": safe_average(
+                            tomorrow_weather.get("feels_like"),
+                            openweather_weather.get("feels_like"),
+                        ),
+                        "wind_speed": safe_average(
+                            tomorrow_weather.get("wind_speed"),
+                            openweather_weather.get("wind_speed"),
+                        ),
+                    },
+                ),
+            ]
+        ]
+
+        db.add_all(weather_entries)
         db.commit()
+
+        def format_value(value, unit=""):
+            return f"{value:.1f}{unit}" if value is not None else "N/A"
 
         return {
             "city": city,
             "tomorrow_io": tomorrow_weather,
             "openweather": openweather_weather,
-            "message": "Weather data stored in database",
+            "average": {
+                "temperature": format_value(avg_temperature, "°F"),
+                "humidity": format_value(weather_entries[2].humidity, "%"),
+                "feels_like": format_value(weather_entries[2].feels_like, "°F"),
+                "wind_speed": format_value(weather_entries[2].wind_speed, " mph"),
+            },
+            "message": "Weather data and average stored in database",
         }
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=str(e))
-    except KeyError as e:
-        raise HTTPException(
-            status_code=500, detail=f"Unexpected response format: {str(e)}"
-        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
