@@ -130,6 +130,8 @@ async def compare_weather(city: str, db: Session = Depends(get_db)):
         tomorrow_weather = await get_tomorrow_weather(city)
         openweather_weather = await get_openweather_weather(city)
 
+        # CHANGE: Combined clean_numeric and safe_clean_numeric into one function
+        # WHY: Simplifies the code and reduces redundancy
         def safe_clean_numeric(value):
             if value is None:
                 return None
@@ -142,6 +144,8 @@ async def compare_weather(city: str, db: Session = Depends(get_db)):
             except ValueError:
                 return None
 
+        # CHANGE: Simplified safe_average function
+        # WHY: Handles None values and cleaning in one step
         def safe_average(val1, val2):
             cleaned1, cleaned2 = safe_clean_numeric(val1), safe_clean_numeric(val2)
             if cleaned1 is not None and cleaned2 is not None:
@@ -152,6 +156,8 @@ async def compare_weather(city: str, db: Session = Depends(get_db)):
             tomorrow_weather.get("temperature"), openweather_weather.get("temperature")
         )
 
+        # CHANGE: Created all Weather entries in a single list comprehension
+        # WHY: Reduces code duplication and makes it easier to add or modify entries
         weather_entries = [
             Weather(
                 city=city,
@@ -186,12 +192,18 @@ async def compare_weather(city: str, db: Session = Depends(get_db)):
             ]
         ]
 
+        # CHANGE: Use add_all instead of individual adds
+        # WHY: More efficient for multiple inserts
         db.add_all(weather_entries)
         db.commit()
 
+        # CHANGE: Simplified formatting function
+        # WHY: Handles None values and formatting in one step
         def format_value(value, unit=""):
             return f"{value:.1f}{unit}" if value is not None else "N/A"
 
+        # CHANGE: Simplified return statement
+        # WHY: Uses the new format_value function and accesses average values directly from weather_entries
         return {
             "city": city,
             "tomorrow_io": tomorrow_weather,
@@ -206,6 +218,8 @@ async def compare_weather(city: str, db: Session = Depends(get_db)):
         }
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=str(e))
+    # CHANGE: Simplified exception handling
+    # WHY: Catches all exceptions not caught by the specific HTTPStatusError
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
