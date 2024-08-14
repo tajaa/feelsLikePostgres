@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 
 import httpx
 from dotenv import load_dotenv
@@ -11,9 +12,14 @@ from database import engine, get_db
 from models import Base, Weather
 
 load_dotenv()
-app = FastAPI()
+
 
 TOMORROW_API = os.getenv("TOMORROW_API")
+OPENWEATHERMAP_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY")
+
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI()
 
 
 @app.get("/test-db")
@@ -35,33 +41,79 @@ def test_db_connection(db: Session = Depends(get_db)):
         )
 
 
-@app.get("/weather/{city}")
-async def get_weather(city: str):
-    """simple get weather"""
+async def get_tomorrow_weather(city: str):
     url = "https://api.tomorrow.io/v4/weather/realtime"
-
-    # query params
     params = {"location": city, "apikey": TOMORROW_API, "units": "imperial"}
 
     async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-            weather_data = response.json()
+        response = await client.get(url, params=params)
+        response.raise_for_status()
+        weather_data = response.json()
 
-            # extract relevant wather info
-            temperature = weather_data["data"]["values"]["temperature"]
-            humidity = weather_data["data"]["values"]["humidity"]
-            return {"city": city, "temperature": temperature, "humidity": humidity}
+        values = weather_data["data"]["values"]
+        timestamp = weather_data["data"]["time"]
 
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(status_code=e.response.status_code, detail=str(e))
-        except KeyError as e:
-            raise HTTPException(
-                status_code=500, detail=f"unexected response format: {str(e)}"
+        # Convert timestamp to datetime if it's a string
+        if isinstance(timestamp, str):
+            timestamp = datetime.fromisoformat(timestamp.rstrip("Z")).replace(
+                tzinfo=timezone.utc
             )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"an error occured: {str(3)}")
+        else:
+            timestamp = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+
+        return {
+            "temperature": f"{values['temperature']}°F",
+            "feels_like": f"{values['temperatureApparent']}°F",
+            "humidity": f"{values['humidity']}%",
+            "wind_speed": f"{values['windSpeed']} mph",
+            "data_time": timestamp.isoformat(),
+            "data_source": "Tomorrow.io API",
+        }
+
+
+async def get_openweather_weather(city: str):
+    url = "http://api.openweathermap.org/data/2.5/weather"
+    params = {"q": city, "appid": OPENWEATHERMAP_API_KEY, "units": "imperial"}
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, params=params)
+        response.raise_for_status()
+        weather_data = response.json()
+
+        timestamp = weather_data["dt"]
+
+        # Convert timestamp to datetime
+        timestamp = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+
+        return {
+            "temperature": f"{weather_data['main']['temp']}°F",
+            "feels_like": f"{weather_data['main']['feels_like']}°F",
+            "humidity": f"{weather_data['main']['humidity']}%",
+            "wind_speed": f"{weather_data['wind']['speed']} mph",
+            "data_time": timestamp.isoformat(),
+            "data_source": "OpenWeather API",
+        }
+
+
+@app.get("/weather/compare/{city}")
+async def compare_weather(city: str):
+    try:
+        tomorrow_weather = await get_tomorrow_weather(city)
+        openweather_weather = await get_openweather_weather(city)
+
+        return {
+            "city": city,
+            "tomorrow_io": tomorrow_weather,
+            "openweather": openweather_weather,
+        }
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
+    except KeyError as e:
+        raise HTTPException(
+            status_code=500, detail=f"Unexpected response format: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 
 # this fastapi app sets up a web server that connects to pstgres
