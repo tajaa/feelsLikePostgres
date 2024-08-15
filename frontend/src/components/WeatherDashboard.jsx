@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Search } from "lucide-react";
 import LocationUpdater from "./LocationUpdater";
-import WeatherSurvey from "./Survey";
+import WeatherSurvey from "./WeatherSurvey";
 
 const WeatherDashboard = () => {
   const [city, setCity] = useState("");
@@ -100,12 +100,25 @@ const WeatherDashboard = () => {
     fetchWeatherByCoordinates(token);
   };
 
-  const handleSurveyComplete = (rating) => {
-    // Here you can send the survey result to your backend if needed
-    console.log("Survey completed with rating:", rating);
-    setSurveyCompleted(true);
-    setShowSurvey(false);
-    fetchWeatherByCoordinates(token);
+  const handleSurveyComplete = async (rating) => {
+    try {
+      await axios.post(
+        "/update-feeling",
+        { feeling_score: rating },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      // Here you can send the survey result to your backend if needed
+      console.log("Survey completed with rating:", rating);
+      setSurveyCompleted(true);
+      setShowSurvey(false);
+      fetchWeatherByCoordinates(token);
+    } catch (err) {
+      console.error("failed to update the feeling sore:", err);
+      setError("failed to update the feeling score");
+    }
   };
 
   if (!isLoggedIn) {

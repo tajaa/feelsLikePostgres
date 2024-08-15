@@ -26,6 +26,7 @@ class User(Base):
     )  # Auto-set to current time on creation
     last_login_lat = Column(Float)  # Store latitude of last login
     last_login_lon = Column(Float)  # Store longitude of last login
+    feeling_score = Column(Integer)  # new column for storing users feeeling
 
     @staticmethod
     def verify_password(plain_password, hashed_password):
@@ -100,3 +101,9 @@ class LocationUpdate(BaseModel):
 
     latitude: float
     longitude: float
+
+
+class UserUpdate(BaseModel):
+    """pydantic model for user update requests"""
+
+    feeling_score: int

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
 from database import get_db
-from models import LocationUpdate, Token, TokenData, User, UserCreate
+from models import LocationUpdate, Token, TokenData, User, UserCreate, UserUpdate
 
 router = APIRouter()
 
@@ -160,3 +160,15 @@ def update_location(
     current_user.last_login_lon = location.longitude
     db.commit()  # Commit changes to the database
     return {"message": "Location updated successfully"}
+
+
+@router.post("/update-feeling")
+def update_feeling(
+    user_update: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """dupate the feeling score of the current user"""
+    current_user.feeling_score = user_update.feeling_score
+    db.commit()
+    return {"message": "feeling score updated successfully"}
