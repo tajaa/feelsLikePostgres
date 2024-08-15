@@ -1,6 +1,7 @@
 import React from "react";
 import "./App.css";
 import WeatherDashboard from "./components/WeatherDashboard";
+import SurveyDashboard from "./components/SurveyDashboard";
 
 function App() {
   return (

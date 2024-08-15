@@ -172,3 +172,39 @@ def update_feeling(
     current_user.feeling_score = user_update.feeling_score
     db.commit()
     return {"message": "feeling score updated successfully"}
+
+
+@router.get("/nearby-scores")
+def get_nearby_scores(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """get feeling scores for nearby users"""
+
+    if current_user.last_login_lat is None or current_user.last_login_lon is None:
+        raise HTTPException(status_code=400, detail="User location not available")
+
+    # define maximum distance (in degrees) to consider nearby
+    max_distance = 0.1
+
+    nearby_users = (
+        db.query(User)
+        .filter(
+            User.id != current_user.id,
+            User.feeling_score.isnot(None),
+            func.abs(User.last_login_lat - current_user.last_login_lat) <= max_distance,
+            func.abs(User.last_login_lon - current_user.last_login_lon) <= max_distance,
+        )
+        .all()
+    )
+    return [
+        {
+            "feeling_score": user.feeling_score,
+            "distance": (
+                (user.last_login_lat - current_user.last_login_lat) ** 2
+                + (user.last_login_lon - current_user.last_login_lon) ** 2
+            )
+            ** 0.5,
+        }
+        for user in nearby_users
+    ]

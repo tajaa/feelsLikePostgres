@@ -3,6 +3,7 @@ import axios from "axios";
 import { Search } from "lucide-react";
 import LocationUpdater from "./LocationUpdater";
 import WeatherSurvey from "./WeatherSurvey";
+import SurveyDashboard from "./SurveyDashboard.jsx";
 
 const WeatherDashboard = () => {
   const [city, setCity] = useState("");
@@ -221,6 +222,7 @@ const WeatherDashboard = () => {
               </div>
             </div>
           )}
+          <SurveyDashboard token={token} />
         </>
       )}
     </div>
