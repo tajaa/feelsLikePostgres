@@ -10,18 +10,19 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from database import Base, engine, get_db
-from models import Base, Weather
+from models import Weather
+from users import router as users_router
 
 load_dotenv()
-
 
 TOMORROW_API = os.getenv("TOMORROW_API")
 OPENWEATHERMAP_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY")
 
 Base.metadata.create_all(bind=engine)
-# Base.metadata.drop_all(bind=engine)
 
 app = FastAPI()
+
+app.include_router(users_router)
 
 
 def setup_database(should_drop=False):
@@ -39,7 +40,6 @@ if __name__ == "__main__":
         elif sys.argv[1] == "--create":
             setup_database()
     else:
-        # Your normal FastAPI run code here
         import uvicorn
 
         uvicorn.run(app, host="0.0.0.0", port=8000)
@@ -47,9 +47,7 @@ if __name__ == "__main__":
 
 @app.get("/test-db")
 def test_db_connection(db: Session = Depends(get_db)):
-    """for testing"""
     try:
-        # Use text() to wrap the SQL string
         result = db.execute(text("SELECT 1")).fetchone()
         if result[0] == 1:
             return {"message": "Successfully connected to the database!"}
@@ -58,14 +56,12 @@ def test_db_connection(db: Session = Depends(get_db)):
                 status_code=500, detail="Unexpected result from database"
             )
     except SQLAlchemyError as e:
-        # If there's an error, return the details
         raise HTTPException(
             status_code=500, detail=f"Database connection failed: {str(e)}"
         )
 
 
 def clean_numeric_string(s: str) -> float:
-    """'remove non numerics"""
     cleaned = "".join(char for char in s if char.isdigit() or char == ".")
     return float(cleaned)
 
@@ -82,7 +78,6 @@ async def get_tomorrow_weather(city: str):
         values = weather_data["data"]["values"]
         timestamp = weather_data["data"]["time"]
 
-        # Convert timestamp to datetime if it's a string
         if isinstance(timestamp, str):
             timestamp = datetime.fromisoformat(timestamp.rstrip("Z")).replace(
                 tzinfo=timezone.utc
@@ -110,8 +105,6 @@ async def get_openweather_weather(city: str):
         weather_data = response.json()
 
         timestamp = weather_data["dt"]
-
-        # Convert timestamp to datetime
         timestamp = datetime.fromtimestamp(timestamp, tz=timezone.utc)
 
         return {
@@ -130,8 +123,6 @@ async def compare_weather(city: str, db: Session = Depends(get_db)):
         tomorrow_weather = await get_tomorrow_weather(city)
         openweather_weather = await get_openweather_weather(city)
 
-        # CHANGE: Combined clean_numeric and safe_clean_numeric into one function
-        # WHY: Simplifies the code and reduces redundancy
         def safe_clean_numeric(value):
             if value is None:
                 return None
@@ -144,8 +135,6 @@ async def compare_weather(city: str, db: Session = Depends(get_db)):
             except ValueError:
                 return None
 
-        # CHANGE: Simplified safe_average function
-        # WHY: Handles None values and cleaning in one step
         def safe_average(val1, val2):
             cleaned1, cleaned2 = safe_clean_numeric(val1), safe_clean_numeric(val2)
             if cleaned1 is not None and cleaned2 is not None:
@@ -156,8 +145,6 @@ async def compare_weather(city: str, db: Session = Depends(get_db)):
             tomorrow_weather.get("temperature"), openweather_weather.get("temperature")
         )
 
-        # CHANGE: Created all Weather entries in a single list comprehension
-        # WHY: Reduces code duplication and makes it easier to add or modify entries
         weather_entries = [
             Weather(
                 city=city,
@@ -192,18 +179,12 @@ async def compare_weather(city: str, db: Session = Depends(get_db)):
             ]
         ]
 
-        # CHANGE: Use add_all instead of individual adds
-        # WHY: More efficient for multiple inserts
         db.add_all(weather_entries)
         db.commit()
 
-        # CHANGE: Simplified formatting function
-        # WHY: Handles None values and formatting in one step
         def format_value(value, unit=""):
             return f"{value:.1f}{unit}" if value is not None else "N/A"
 
-        # CHANGE: Simplified return statement
-        # WHY: Uses the new format_value function and accesses average values directly from weather_entries
         return {
             "city": city,
             "tomorrow_io": tomorrow_weather,
@@ -218,11 +199,26 @@ async def compare_weather(city: str, db: Session = Depends(get_db)):
         }
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=str(e))
-    # CHANGE: Simplified exception handling
-    # WHY: Catches all exceptions not caught by the specific HTTPStatusError
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 
-# this fastapi app sets up a web server that connects to pstgres
-# it uses sqlAlchemy orm to itneract w that database allwoing us to work with python objects instead of writing raw sql queries
+@app.get("/initial-weather")
+def get_initial_weather(db: Session = Depends(get_db)):
+    try:
+        latest_weather = db.query(Weather).order_by(Weather.timestamp.desc()).first()
+
+        if latest_weather:
+            return {
+                "city": latest_weather.city,
+                "average": {
+                    "temperature": f"{latest_weather.temperature:.1f}°F",
+                    "humidity": f"{latest_weather.humidity:.1f}%",
+                    "feels_like": f"{latest_weather.feels_like:.1f}°F",
+                    "wind_speed": f"{latest_weather.wind_speed:.1f} mph",
+                },
+            }
+        else:
+            raise HTTPException(status_code=404, detail="No weather data available")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
