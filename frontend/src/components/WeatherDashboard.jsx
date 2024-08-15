@@ -169,42 +169,44 @@ const WeatherDashboard = () => {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-3xl font-bold">Weather Dashboard</h1>
+    <div className="bg-gray-800 shadow-lg rounded-lg p-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-orange-500">
+          Weather Dashboard
+        </h1>
         <button
           onClick={handleLogout}
-          className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500"
+          className="bg-red-600 text-gray-100 px-4 py-2 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition duration-300"
         >
           Logout
         </button>
       </div>
       <LocationUpdater onLocationUpdate={handleLocationUpdate} />
-      <div className="flex mb-4">
+      <div className="flex mb-6">
         <input
           type="text"
           value={city}
           onChange={(e) => setCity(e.target.value)}
           placeholder="Enter city name"
-          className="flex-grow px-4 py-2 border rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-grow px-4 py-2 bg-gray-700 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-100"
         />
         <button
           onClick={fetchWeather}
-          className="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="bg-orange-600 text-gray-100 px-6 py-2 rounded-r-lg hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 transition duration-300"
         >
           <Search size={20} />
         </button>
       </div>
 
-      {loading && <p className="text-gray-600">Loading...</p>}
+      {loading && <p className="text-gray-400">Loading...</p>}
       {error && <p className="text-red-500">{error}</p>}
 
       {weatherData && (
-        <div className="bg-white shadow-md rounded-lg p-4">
-          <h2 className="text-2xl font-semibold mb-2">
-            Weather in {weatherData.city || "Latest City"}
+        <div className="bg-gray-700 shadow-md rounded-lg p-6">
+          <h2 className="text-2xl font-semibold mb-4 text-orange-500">
+            Weather in {weatherData.city || city || "Latest City"}
           </h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6">
             <WeatherCard
               title="Temperature"
               value={weatherData.average.temperature}
@@ -229,9 +231,9 @@ const WeatherDashboard = () => {
 };
 
 const WeatherCard = ({ title, value }) => (
-  <div className="bg-gray-100 p-4 rounded-lg">
-    <h3 className="text-lg font-semibold mb-2">{title}</h3>
-    <p className="text-2xl">{value}</p>
+  <div className="bg-gray-800 p-4 rounded-lg shadow-md">
+    <h3 className="text-lg font-semibold mb-2 text-orange-400">{title}</h3>
+    <p className="text-2xl text-gray-100">{value}</p>
   </div>
 );
 

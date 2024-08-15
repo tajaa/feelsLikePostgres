@@ -1,10 +1,13 @@
+import React from "react";
 import "./App.css";
 import WeatherDashboard from "./components/WeatherDashboard";
 
 function App() {
   return (
-    <div className="bg-slate-950 text-teal-500">
-      <WeatherDashboard />
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-gray-100 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-3xl mx-auto">
+        <WeatherDashboard />
+      </div>
     </div>
   );
 }
