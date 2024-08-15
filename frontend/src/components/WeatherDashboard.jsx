@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Search } from "lucide-react";
 import jwtDecode from "jwt-decode";
+import LocationUpdater from "./LocationUpdater";
 
 const WeatherDashboard = () => {
   const [city, setCity] = useState("");
@@ -23,6 +24,22 @@ const WeatherDashboard = () => {
       setLoading(false);
     }
   }, []);
+
+  const fetchWeatherByCoordinates = async (authToken) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.get("/weather/coordinates", {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      setWeatherData(response.data.weather);
+      setCity(response.data.city);
+    } catch (err) {
+      setError("Failed to fetch weather data for your location");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchInitialWeather = async (authToken) => {
     try {
@@ -110,6 +127,10 @@ const WeatherDashboard = () => {
     }
   };
 
+  const handleLocationUpdate = () => {
+    fetchWeatherByCoordinates(token);
+  };
+
   if (!isLoggedIn) {
     return (
       <div className="container mx-auto p-4">
@@ -158,6 +179,7 @@ const WeatherDashboard = () => {
           Logout
         </button>
       </div>
+      <LocationUpdater onLocationUpdate={handleLocationUpdate} />
       <div className="flex mb-4">
         <input
           type="text"

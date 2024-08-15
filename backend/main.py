@@ -10,7 +10,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from database import Base, engine, get_db
-from models import Weather
+from models import User, Weather
+from users import get_current_user
 from users import router as users_router
 
 load_dotenv()
@@ -222,3 +223,32 @@ def get_initial_weather(db: Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail="No weather data available")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+
+@app.get("/weather/coordinates")
+async def get_weather_by_coordinates(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """get weather by coordinates"""
+    if current_user.last_login_lat is None or current_user.last_login_lon is None:
+        raise HTTPException(status_code=400, detail="user location not available")
+
+    lat, lon = current_user.last_login_lat, current_user.last_login_lon
+
+    # user openwathermap api to get the city name from the coordinates
+    url = "http://api.openweathermap.org/geo/1.0/reverse"
+    params = {"lat": lat, "lon": lon, "limit": 1, "appid": OPENWEATHERMAP_API_KEY}
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, params=params)
+        response.raise_for_status()
+        location_data = response.json()
+
+        if not location_data:
+            raise HTTPException(status_code=404, detail="location not found")
+
+        city = location_data[0]["name"]
+
+    # now use the existing compare_weather funciton to get the wather
+    weather_data = await compare_weather(city, db)
+    return {"city": city, "weather": weather_data}
